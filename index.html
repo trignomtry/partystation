@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Partystation</title>
+    <link rel="stylesheet" href="/style/main.css">
+    <link rel="modulepreload" href="/pkg/partystation.js">
+  </head>
+  <body>
+    <script type="module">
+      import init from '/pkg/partystation.js';
+      init('/pkg/partystation_bg.wasm');
+    </script>
+  </body>
+</html>

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Partystation</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Partystation</h1>
+    
+    <div id="join-screen">
+        <input type="text" id="name-input" placeholder="Enter your name">
+        <button id="join-button">Join Game</button>
+    </div>
+
+    <div id="lobby-screen" style="display: none;">
+        <h2>Lobby</h2>
+        <ul id="player-list"></ul>
+        <button id="start-button" style="display: none;">Start Game</button>
+    </div>
+
+    <div id="game-area">
+        <!-- Game content will be loaded here -->
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+[Unit]
+Description=Partystation Party Game Platform
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/partystation
+WorkingDirectory=/var/lib/partystation
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
