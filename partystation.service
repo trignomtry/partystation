@@ -3,8 +3,8 @@ Description=Partystation Party Game Platform
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/partystation
-WorkingDirectory=/var/lib/partystation
+ExecStart=/root/partystation/binary
+WorkingDirectory=/root/partystation
 Restart=always
 User=pi
 

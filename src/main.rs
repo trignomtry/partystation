@@ -1,5 +1,8 @@
 use axum::{
-    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, State},
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        State,
+    },
     routing::get,
     Router,
 };
@@ -22,7 +25,7 @@ slint::slint! {
         in property <string> phase: "lobby";
         in property <int> timer: 0;
         in property <string> prompt: "";
-        in property <string> lobby_url: "partystation.local:3000";
+        in property <string> lobby_url: "partybox.play";
         in property <[string]> player_names: [];
         in property <[string]> ready_names: [];
         in property <[string]> result_lines: [];
@@ -35,7 +38,7 @@ slint::slint! {
         VerticalBox {
             padding: 40px;
             alignment: start;
-            
+
             HorizontalBox {
                 Text {
                     text: "PartyStation";
@@ -52,17 +55,23 @@ slint::slint! {
             }
 
             if phase == "lobby" : VerticalBox {
-                spacing: 20px;
+                spacing: 15px;
                 Text {
-                    text: "Join at " + lobby_url;
-                    font-size: 35px;
+                    text: "1. Join 'PartyBox' Wi-Fi";
+                    font-size: 32px;
+                    color: white;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: "2. Go to " + lobby_url;
+                    font-size: 32px;
                     color: white;
                     horizontal-alignment: center;
                 }
                 for name in player_names : Text {
                     text: "👤 " + name;
                     font-size: 32px;
-                    color: white;
+                    color: #f1c40f;
                     horizontal-alignment: center;
                 }
             }
@@ -72,7 +81,7 @@ slint::slint! {
                 spacing: 30px;
                 Text { text: "GET READY TO ANSWER!"; font-size: 40px; color: #e94560; horizontal-alignment: center; }
                 Text { text: timer + "s"; font-size: 100px; font-weight: 900; color: #f1c40f; horizontal-alignment: center; }
-                
+
                 HorizontalBox {
                     alignment: center;
                     spacing: 20px;
@@ -112,7 +121,10 @@ slint::slint! {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct Player { id: usize, name: String }
+struct Player {
+    id: usize,
+    name: String,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Question {
@@ -125,50 +137,106 @@ struct Question {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
 enum ClientMessage {
-    Join { name: String },
+    Join {
+        name: String,
+    },
     StartGame,
     #[serde(rename_all = "camelCase")]
-    SubmitAnswer { question_index: usize, answer: String },
+    SubmitAnswer {
+        question_index: usize,
+        answer: String,
+    },
     #[serde(rename_all = "camelCase")]
-    SubmitVote { question_index: usize, target_id: usize },
+    SubmitVote {
+        question_index: usize,
+        target_id: usize,
+    },
     ResetToLobby,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
-enum GamePhase { Lobby, Prompting, Voting, Reveal, Results }
+enum GamePhase {
+    Lobby,
+    Prompting,
+    Voting,
+    Reveal,
+    Results,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
 enum ServerMessage {
     #[serde(rename_all = "camelCase")]
-    Welcome { 
-        id: usize, phase: GamePhase, players: Vec<Player>, scores: HashMap<usize, i32>,
-        my_questions: Vec<(usize, String)>, current_question: Option<Question>,
-        current_question_index: usize, questions: Vec<Question>, can_start: bool, timer: u32, round: u32,
+    Welcome {
+        id: usize,
+        phase: GamePhase,
+        players: Vec<Player>,
+        scores: HashMap<usize, i32>,
+        my_questions: Vec<(usize, String)>,
+        current_question: Option<Question>,
+        current_question_index: usize,
+        questions: Vec<Question>,
+        can_start: bool,
+        timer: u32,
+        round: u32,
     },
     #[serde(rename_all = "camelCase")]
-    LobbyState { phase: GamePhase, players: Vec<Player>, can_start: bool },
-    #[serde(rename_all = "camelCase")]
-    GameState { 
-        phase: GamePhase, scores: HashMap<usize, i32>, my_questions: Option<Vec<(usize, String)>>,
-        current_question: Option<Question>, current_question_index: Option<usize>,
-        questions: Option<Vec<Question>>, timer: u32, round: u32, players: Option<Vec<Player>>,
+    LobbyState {
+        phase: GamePhase,
+        players: Vec<Player>,
+        can_start: bool,
     },
-    TimerTick { timer: u32 },
+    #[serde(rename_all = "camelCase")]
+    GameState {
+        phase: GamePhase,
+        scores: HashMap<usize, i32>,
+        my_questions: Option<Vec<(usize, String)>>,
+        current_question: Option<Question>,
+        current_question_index: Option<usize>,
+        questions: Option<Vec<Question>>,
+        timer: u32,
+        round: u32,
+        players: Option<Vec<Player>>,
+    },
+    TimerTick {
+        timer: u32,
+    },
 }
 
 struct AppState {
-    players: HashMap<usize, Player>, scores: HashMap<usize, i32>, questions: Vec<Question>,
-    current_question_index: usize, phase: GamePhase, timer: u32, round: u32, next_id: usize, tx: broadcast::Sender<ServerMessage>,
+    players: HashMap<usize, Player>,
+    scores: HashMap<usize, i32>,
+    questions: Vec<Question>,
+    current_question_index: usize,
+    phase: GamePhase,
+    timer: u32,
+    round: u32,
+    next_id: usize,
+    tx: broadcast::Sender<ServerMessage>,
 }
 
 fn generate_questions(players: &[usize], _round: u32) -> Vec<Question> {
-    let mut prompts = vec!["A new law states that everyone must __________ once a day.", "If I were a superhero, my useless power would be __________.", "The best way to spice up a boring wedding is __________.", "The title of my autobiography would be: 'The Man, The Myth, The __________.'", "I don't need a therapist, I just need __________."];
-    use rand::seq::SliceRandom; let mut rng = rand::thread_rng(); prompts.shuffle(&mut rng);
+    let mut prompts = vec![
+        "A new law states that everyone must __________ once a day.",
+        "If I were a superhero, my useless power would be __________.",
+        "The best way to spice up a boring wedding is __________.",
+        "The title of my autobiography would be: 'The Man, The Myth, The __________.'",
+        "I don't need a therapist, I just need __________.",
+    ];
+    use rand::seq::SliceRandom;
+    let mut rng = rand::thread_rng();
+    prompts.shuffle(&mut rng);
     let n = players.len();
     let mut qs = Vec::new();
-    for i in 0..n { qs.push(Question { prompt: prompts[i % prompts.len()].to_string(), player_ids: (players[i], players[(i + 1) % n]), answers: HashMap::new(), votes: HashMap::new() }); }
+    for i in 0..n {
+        qs.push(Question {
+            prompt: prompts[i % prompts.len()].to_string(),
+            player_ids: (players[i], players[(i + 1) % n]),
+            answers: HashMap::new(),
+            votes: HashMap::new(),
+        });
+    }
     qs
 }
 
@@ -185,19 +253,45 @@ fn ensure_slint_backend() {
 #[tokio::main]
 async fn main() -> io::Result<()> {
     ensure_slint_backend();
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 80));
     let mdns = ServiceDaemon::new().expect("Failed to create daemon");
-    let my_ip = get_if_addrs()?.into_iter().find(|iface| !iface.is_loopback() && matches!(iface.addr, IfAddr::V4(_))).map(|iface| iface.addr.ip()).unwrap_or(IpAddr::V4("127.0.0.1".parse().unwrap()));
+    let my_ip = get_if_addrs()?
+        .into_iter()
+        .find(|iface| !iface.is_loopback() && matches!(iface.addr, IfAddr::V4(_)))
+        .map(|iface| iface.addr.ip())
+        .unwrap_or(IpAddr::V4("127.0.0.1".parse().unwrap()));
     let properties = [("path", "/")];
-    let service_info = ServiceInfo::new("_http._tcp.local.", "partystation", "partystation.local.", my_ip.to_string(), 3000, &properties[..]).unwrap();
-    mdns.register(service_info).expect("Failed to register service");
+    let service_info = ServiceInfo::new(
+        "_http._tcp.local.",
+        "partystation",
+        "partystation.local.",
+        my_ip.to_string(),
+        80,
+        &properties[..],
+    )
+    .unwrap();
+    mdns.register(service_info)
+        .expect("Failed to register service");
 
     let (tx, _rx) = broadcast::channel(100);
-    let state = Arc::new(RwLock::new(AppState { players: HashMap::new(), scores: HashMap::new(), questions: Vec::new(), current_question_index: 0, phase: GamePhase::Lobby, timer: 0, round: 1, next_id: 1, tx: tx.clone() }));
+    let state = Arc::new(RwLock::new(AppState {
+        players: HashMap::new(),
+        scores: HashMap::new(),
+        questions: Vec::new(),
+        current_question_index: 0,
+        phase: GamePhase::Lobby,
+        timer: 0,
+        round: 1,
+        next_id: 1,
+        tx: tx.clone(),
+    }));
 
     let state_axum = state.clone();
     tokio::spawn(async move {
-        let app = Router::new().route("/ws", get(ws_handler)).nest_service("/", ServeDir::new("public")).with_state(state_axum);
+        let app = Router::new()
+            .route("/ws", get(ws_handler))
+            .nest_service("/", ServeDir::new("public"))
+            .with_state(state_axum);
         let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
         axum::serve(listener, app).await.unwrap();
     });
@@ -215,27 +309,84 @@ async fn main() -> io::Result<()> {
                     let mut phase_changed = false;
                     if s.timer == 0 {
                         match s.phase {
-                            GamePhase::Prompting => { s.phase = GamePhase::Voting; s.current_question_index = 0; s.timer = 10; phase_changed = true; }
-                            GamePhase::Voting => { s.phase = GamePhase::Reveal; s.timer = 5; phase_changed = true; }
+                            GamePhase::Prompting => {
+                                s.phase = GamePhase::Voting;
+                                s.current_question_index = 0;
+                                s.timer = 10;
+                                phase_changed = true;
+                            }
+                            GamePhase::Voting => {
+                                s.phase = GamePhase::Reveal;
+                                s.timer = 5;
+                                phase_changed = true;
+                            }
                             GamePhase::Reveal => {
                                 s.current_question_index += 1;
                                 if s.current_question_index >= s.questions.len() {
                                     if s.round < 3 {
-                                        s.round += 1; s.phase = GamePhase::Prompting; s.timer = 60; let p_ids: Vec<_> = s.players.keys().cloned().collect(); s.questions = generate_questions(&p_ids, s.round); s.current_question_index = 0;
-                                    } else { s.phase = GamePhase::Results; }
-                                } else { s.phase = GamePhase::Voting; s.timer = 10; }
+                                        s.round += 1;
+                                        s.phase = GamePhase::Prompting;
+                                        s.timer = 60;
+                                        let p_ids: Vec<_> = s.players.keys().cloned().collect();
+                                        s.questions = generate_questions(&p_ids, s.round);
+                                        s.current_question_index = 0;
+                                    } else {
+                                        s.phase = GamePhase::Results;
+                                    }
+                                } else {
+                                    s.phase = GamePhase::Voting;
+                                    s.timer = 10;
+                                }
                                 phase_changed = true;
                             }
                             _ => {}
                         }
                     }
-                    if phase_changed { (true, Some((s.phase.clone(), s.scores.clone(), s.questions.get(s.current_question_index).cloned(), s.current_question_index, s.questions.clone(), s.timer, s.round, s.players.values().cloned().collect()))) }
-                    else { let _ = s.tx.send(ServerMessage::TimerTick { timer: s.timer }); (false, None) }
-                } else { (false, None) }
+                    if phase_changed {
+                        (
+                            true,
+                            Some((
+                                s.phase.clone(),
+                                s.scores.clone(),
+                                s.questions.get(s.current_question_index).cloned(),
+                                s.current_question_index,
+                                s.questions.clone(),
+                                s.timer,
+                                s.round,
+                                s.players.values().cloned().collect(),
+                            )),
+                        )
+                    } else {
+                        let _ = s.tx.send(ServerMessage::TimerTick { timer: s.timer });
+                        (false, None)
+                    }
+                } else {
+                    (false, None)
+                }
             };
             if should_send_full {
-                if let Some((phase, scores, current_question, current_question_index, questions, timer, round, players)) = res {
-                    let _ = tx_timer.send(ServerMessage::GameState { phase, scores, my_questions: None, current_question, current_question_index: Some(current_question_index), questions: Some(questions), timer, round, players: Some(players) });
+                if let Some((
+                    phase,
+                    scores,
+                    current_question,
+                    current_question_index,
+                    questions,
+                    timer,
+                    round,
+                    players,
+                )) = res
+                {
+                    let _ = tx_timer.send(ServerMessage::GameState {
+                        phase,
+                        scores,
+                        my_questions: None,
+                        current_question,
+                        current_question_index: Some(current_question_index),
+                        questions: Some(questions),
+                        timer,
+                        round,
+                        players: Some(players),
+                    });
                 }
             }
         }
@@ -244,43 +395,123 @@ async fn main() -> io::Result<()> {
     let window = MainWindow::new().unwrap();
     let window_handle = window.as_weak();
     let mut rx = tx.subscribe();
-    
+
     std::thread::spawn(move || {
-        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
         rt.block_on(async {
             while let Ok(msg) = rx.recv().await {
                 let w_handle = window_handle.clone();
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(w) = w_handle.upgrade() {
                         match msg {
-                            ServerMessage::Welcome { phase, players, timer, current_question, round, .. } => {
-                                let p_str: String = serde_json::to_value(&phase).unwrap().as_str().unwrap().into();
-                                w.set_phase(slint::SharedString::from(p_str)); w.set_timer(timer as i32); w.set_round(round as i32);
-                                if let Some(q) = current_question { w.set_prompt(slint::SharedString::from(q.prompt)); }
-                                let names: Vec<slint::SharedString> = players.iter().map(|p| slint::SharedString::from(p.name.clone())).collect();
-                                w.set_player_names(std::rc::Rc::new(slint::VecModel::from(names)).into());
+                            ServerMessage::Welcome {
+                                phase,
+                                players,
+                                timer,
+                                current_question,
+                                round,
+                                ..
+                            } => {
+                                let p_str: String = serde_json::to_value(&phase)
+                                    .unwrap()
+                                    .as_str()
+                                    .unwrap()
+                                    .into();
+                                w.set_phase(slint::SharedString::from(p_str));
+                                w.set_timer(timer as i32);
+                                w.set_round(round as i32);
+                                if let Some(q) = current_question {
+                                    w.set_prompt(slint::SharedString::from(q.prompt));
+                                }
+                                let names: Vec<slint::SharedString> = players
+                                    .iter()
+                                    .map(|p| slint::SharedString::from(p.name.clone()))
+                                    .collect();
+                                w.set_player_names(
+                                    std::rc::Rc::new(slint::VecModel::from(names)).into(),
+                                );
                             }
-                            ServerMessage::GameState { phase, timer, current_question, round, questions, players, scores, .. } => {
-                                let p_str: String = serde_json::to_value(&phase).unwrap().as_str().unwrap().into();
-                                w.set_phase(slint::SharedString::from(p_str)); w.set_timer(timer as i32); w.set_round(round as i32);
-                                if let Some(q) = current_question { w.set_prompt(slint::SharedString::from(q.prompt)); }
+                            ServerMessage::GameState {
+                                phase,
+                                timer,
+                                current_question,
+                                round,
+                                questions,
+                                players,
+                                scores,
+                                ..
+                            } => {
+                                let p_str: String = serde_json::to_value(&phase)
+                                    .unwrap()
+                                    .as_str()
+                                    .unwrap()
+                                    .into();
+                                w.set_phase(slint::SharedString::from(p_str));
+                                w.set_timer(timer as i32);
+                                w.set_round(round as i32);
+                                if let Some(q) = current_question {
+                                    w.set_prompt(slint::SharedString::from(q.prompt));
+                                }
                                 if let (Some(qs), Some(ps)) = (questions, players) {
-                                    let ready: Vec<slint::SharedString> = ps.iter().filter(|p| qs.iter().filter(|q| q.player_ids.0 == p.id || q.player_ids.1 == p.id).all(|q| q.answers.contains_key(&p.id))).map(|p| slint::SharedString::from(p.name.clone())).collect();
-                                    w.set_ready_names(std::rc::Rc::new(slint::VecModel::from(ready)).into());
+                                    let ready: Vec<slint::SharedString> = ps
+                                        .iter()
+                                        .filter(|p| {
+                                            qs.iter()
+                                                .filter(|q| {
+                                                    q.player_ids.0 == p.id || q.player_ids.1 == p.id
+                                                })
+                                                .all(|q| q.answers.contains_key(&p.id))
+                                        })
+                                        .map(|p| slint::SharedString::from(p.name.clone()))
+                                        .collect();
+                                    w.set_ready_names(
+                                        std::rc::Rc::new(slint::VecModel::from(ready)).into(),
+                                    );
                                     if phase == GamePhase::Results {
-                                        let mut sorted = ps.clone(); sorted.sort_by(|a, b| scores.get(&b.id).unwrap_or(&0).cmp(scores.get(&a.id).unwrap_or(&0)));
-                                        let lines: Vec<slint::SharedString> = sorted.iter().map(|p| slint::SharedString::from(format!("{}: {} pts", p.name, scores.get(&p.id).unwrap_or(&0)))).collect();
-                                        w.set_result_lines(std::rc::Rc::new(slint::VecModel::from(lines)).into());
+                                        let mut sorted = ps.clone();
+                                        sorted.sort_by(|a, b| {
+                                            scores
+                                                .get(&b.id)
+                                                .unwrap_or(&0)
+                                                .cmp(scores.get(&a.id).unwrap_or(&0))
+                                        });
+                                        let lines: Vec<slint::SharedString> = sorted
+                                            .iter()
+                                            .map(|p| {
+                                                slint::SharedString::from(format!(
+                                                    "{}: {} pts",
+                                                    p.name,
+                                                    scores.get(&p.id).unwrap_or(&0)
+                                                ))
+                                            })
+                                            .collect();
+                                        w.set_result_lines(
+                                            std::rc::Rc::new(slint::VecModel::from(lines)).into(),
+                                        );
                                     }
                                 }
                             }
                             ServerMessage::LobbyState { phase, players, .. } => {
-                                let p_str: String = serde_json::to_value(&phase).unwrap().as_str().unwrap().into();
+                                let p_str: String = serde_json::to_value(&phase)
+                                    .unwrap()
+                                    .as_str()
+                                    .unwrap()
+                                    .into();
                                 w.set_phase(slint::SharedString::from(p_str));
-                                let names: Vec<slint::SharedString> = players.iter().map(|p| slint::SharedString::from(p.name.clone())).collect();
-                                w.set_player_names(std::rc::Rc::new(slint::VecModel::from(names)).into());
+                                let names: Vec<slint::SharedString> = players
+                                    .iter()
+                                    .map(|p| slint::SharedString::from(p.name.clone()))
+                                    .collect();
+                                w.set_player_names(
+                                    std::rc::Rc::new(slint::VecModel::from(names)).into(),
+                                );
                             }
-                            ServerMessage::TimerTick { timer } => { w.set_timer(timer as i32); }
+                            ServerMessage::TimerTick { timer } => {
+                                w.set_timer(timer as i32);
+                            }
                         }
                     }
                 });
@@ -292,7 +523,10 @@ async fn main() -> io::Result<()> {
     Ok(())
 }
 
-async fn ws_handler(ws: WebSocketUpgrade, State(state): State<Arc<RwLock<AppState>>>) -> axum::response::Response {
+async fn ws_handler(
+    ws: WebSocketUpgrade,
+    State(state): State<Arc<RwLock<AppState>>>,
+) -> axum::response::Response {
     ws.on_upgrade(|socket| handle_socket(socket, state))
 }
 
