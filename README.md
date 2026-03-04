@@ -65,3 +65,31 @@ When running on your computer, just connect your phone and computer to the same 
 3.  Copy the `public` directory to `/var/lib/partystation/public`.
 4.  Install the `systemd` service: `sudo cp partystation.service /etc/systemd/system/partystation.service`.
 5.  Enable and start: `sudo systemctl enable --now partystation`.
+
+## Cross-compiling for Raspberry Pi (Zig, no Docker)
+
+1. On your Pi (Bookworm), install dev libs:
+   ```bash
+   sudo apt-get update
+   sudo apt-get install -y libfontconfig1-dev libxkbcommon-dev libudev-dev libdrm-dev libgbm-dev libinput-dev libegl1-mesa-dev libgles2-mesa-dev
+   ```
+
+2. From your Mac, sync a **32-bit armhf** sysroot to `~/pi-sysroot` (or set `PI_SYSROOT`). Make sure the Pi OS is 32-bit or has armhf libs installed:
+   ```bash
+   rsync -avz pi@<pi-ip>:/usr/include ~/pi-sysroot/
+   rsync -avz pi@<pi-ip>:/usr/lib/arm-linux-gnueabihf ~/pi-sysroot/usr/lib/
+   rsync -avz pi@<pi-ip>:/usr/share/pkgconfig ~/pi-sysroot/usr/share/
+   rsync -avz pi@<pi-ip>:/usr/lib/arm-linux-gnueabihf/pkgconfig ~/pi-sysroot/usr/lib/arm-linux-gnueabihf/
+   ```
+   If you only see `aarch64-linux-gnu` in `/usr/lib` on your Pi, you synced a 64-bit sysroot; install armhf packages or use a 32-bit Pi OS for this armv7 build.
+
+3. Install tools on Mac: `brew install zig`, `cargo install cargo-zigbuild`, `rustup target add armv7-unknown-linux-gnueabihf aarch64-unknown-linux-gnu`.
+
+4. Build (no Docker):
+   ```bash
+   ./scripts/zigbuild-armv7-local.sh   # auto-picks armv7 if armhf sysroot; aarch64 if only 64-bit sysroot
+   # or override explicitly:
+   TARGET_TRIPLE=aarch64-unknown-linux-gnu GLIBC_VER=2.38 ./scripts/zigbuild-armv7-local.sh
+   ```
+
+The binary will be at `target/<target-triple>/release/partystation`. Run on Pi with `SLINT_BACKEND=linuxkms-noseat ./partystation`.

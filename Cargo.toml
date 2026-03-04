@@ -12,5 +12,15 @@ serde_json = "1.0.117"
 rand = "0.8.5"
 futures-util = "0.3.30"
 mdns-sd = "0.10.0"
-slint = { version = "1.5.1", features = ["compat-1-2", "renderer-software", "backend-winit"] }
+slint = { version = "1", default-features = false, features = [
+    "std",
+    "renderer-software",
+    "backend-linuxkms-noseat",
+    "backend-winit",
+    "compat-1-2"
+] }
+
+fontique = { version = "0.7", features = ["fontconfig-dlopen"] }
+
+
 if-addrs = "0.10.0"

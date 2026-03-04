@@ -172,8 +172,19 @@ fn generate_questions(players: &[usize], _round: u32) -> Vec<Question> {
     qs
 }
 
+fn ensure_slint_backend() {
+    if std::env::var("SLINT_BACKEND").is_err() {
+        if cfg!(target_os = "linux") {
+            std::env::set_var("SLINT_BACKEND", "linuxkms-noseat");
+        } else {
+            std::env::set_var("SLINT_BACKEND", "winit");
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> io::Result<()> {
+    ensure_slint_backend();
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     let mdns = ServiceDaemon::new().expect("Failed to create daemon");
     let my_ip = get_if_addrs()?.into_iter().find(|iface| !iface.is_loopback() && matches!(iface.addr, IfAddr::V4(_))).map(|iface| iface.addr.ip()).unwrap_or(IpAddr::V4("127.0.0.1".parse().unwrap()));
